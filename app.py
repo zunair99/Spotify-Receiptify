@@ -6,6 +6,8 @@ import time
 import datetime
 import os
 
+from sqlalchemy import all_
+
 #Client Authorization using Environment Variables
 client_id = os.environ.get('SPOTIPY_CLIENT_ID')
 client_secret = os.environ.get('SPOTIPY_CLIENT_SECRET')
@@ -63,7 +65,6 @@ def extract_track_feats(id):
     return track_meta
 
 
-
 #extracting features of track url (metadata)
 def extract_track_feats_url(url):
     feats = sp.track(url)
@@ -92,3 +93,10 @@ for a in range(len(track_urls)):
     full_track_url = extract_track_feats(track_urls[a])
     all_tracks_url.append(full_track_url)
 all_tracks_url
+
+#sending to csv
+df = pd.DataFrame(all_tracks).transpose()
+df.head()
+df = df.rename(index = {0:'title',1:'album', 2:'artist_name', 3:'spotify_url',4:'album_artwork'})
+df.head()
+df.to_csv('top20.csv')
