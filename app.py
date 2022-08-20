@@ -1,3 +1,4 @@
+from email.mime import audio
 import spotipy
 import requests
 from spotipy.oauth2 import SpotifyOAuth
@@ -6,24 +7,27 @@ import time
 import datetime
 import os
 
-from sqlalchemy import all_
+def auth():
+    #Client Authorization using Environment Variables
+    client_id = os.environ.get('SPOTIPY_CLIENT_ID')
+    client_secret = os.environ.get('SPOTIPY_CLIENT_SECRET')
+    redirect_uri = os.environ.get('SPOTIPY_REDIRECT_URI')
 
-#Client Authorization using Environment Variables
-client_id = os.environ.get('SPOTIPY_CLIENT_ID')
-client_secret = os.environ.get('SPOTIPY_CLIENT_SECRET')
-redirect_uri = os.environ.get('SPOTIPY_REDIRECT_URI')
+    #defining scope, read-access only
+    scope = "user-top-read"
 
-#defining scope, read-access only
-scope = "user-top-read"
-
-sp = spotipy.Spotify(
-    auth_manager=SpotifyOAuth(
-        client_id = client_id,
-        client_secret=client_secret,
-        redirect_uri=redirect_uri,
-        scope = scope
+    sp = spotipy.Spotify(
+        auth_manager=SpotifyOAuth(
+            client_id = client_id,
+            client_secret=client_secret,
+            redirect_uri=redirect_uri,
+            scope = scope
+        )
     )
-)
+
+    return sp
+
+sp = auth()
 
 top_tracks_short = sp.current_user_top_tracks(limit = 50, offset=0, time_range="short_term")
 
@@ -58,9 +62,21 @@ def extract_track_feats(id):
     track_name = feats['name']
     track_id = feats['id']
     track_album = feats['album']['name']
-    track_artist = feats['album']['artists'][0]['name'] #only pulling the first artist listed (primary artist)
+    primary_artist = feats['album']['artists'][0]['name'] #only pulling the first artist listed (primary artist)
+
+    #extract list of all artists on a track, not just the primary artist
+    track_artists_list = list()
+    for i in range(len(feats['artists'])):
+        track_artists_list.append(feats['artists'][i]['name'])
+    track_artists = track_artists_list
+    
     track_popularity = feats['popularity']
 
+    #audio analysis
+    audio_analysis = sp.audio_analysis(id)
+    tempo = audio_analysis['track']['tempo']
+    loudness = audio_analysis['track']['loudness']
+    
     #finding related artists to the primary artist
     related_artists = sp.artist_related_artists(feats['album']['artists'][0]['id'])
     related_artists = related_artists['artists']
@@ -79,20 +95,15 @@ def extract_track_feats(id):
     album_cover = feats['album']['images'][0]['url'] #pulls the url for the album cover
 
     #combining all features
-    track_meta = [track_name,track_id,track_album,track_artist,track_popularity,genre_list,related_artists,spotify_url,album_cover]
+    track_meta = [track_name,track_id,track_album,primary_artist,track_artists,tempo,loudness,track_popularity,genre_list,related_artists,spotify_url,album_cover]
     return track_meta
 
 
-extract_track_feats(top_ids_short[1])
-top_ids_df = pd.DataFrame(columns=['TITLE', 'TRACK_ID','ALBUM','ARTIST','POPULARITY_SCALE','GENRE','RELATED_ARTISTS','SPOTIFY_URL','ARTWORK_URL'])
+top_ids_df = pd.DataFrame(columns=['TITLE', 'TRACK_ID','ALBUM','PRIMARY_ARTIST','ALL_ARTISTS','TEMPO_(BPM)','LOUDNESS_(db)','POPULARITY_SCALE','GENRE','RELATED_ARTISTS','SPOTIFY_URL','ARTWORK_URL'])
 for i in range(len(top_ids_short)):
     short_ids_info = extract_track_feats(top_ids_short[i])
     top_ids_df.loc[i]=short_ids_info
 print(top_ids_df)
-
-
-
-
 
 
 #extracting features of track url (metadata)
